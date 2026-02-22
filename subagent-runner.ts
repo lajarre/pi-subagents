@@ -312,6 +312,13 @@ async function runSingleStep(
 		args.push("--append-system-prompt", promptPath);
 	}
 
+	// Generic piArgs pass-through
+	if (step.piArgs?.length) {
+		const { validatePiArgs } = await import("./pi-args-validation.js");
+		validatePiArgs(step.piArgs);
+		args.push(...step.piArgs);
+	}
+
 	const placeholderRegex = new RegExp(ctx.placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
 	const task = step.task.replace(placeholderRegex, () => ctx.previousOutput);
 

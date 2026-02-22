@@ -126,6 +126,13 @@ export async function runSync(
 		args.push("--append-system-prompt", tmp.path);
 	}
 
+	// Generic piArgs pass-through
+	if (options.piArgs?.length) {
+		const { validatePiArgs } = await import("./pi-args-validation.js");
+		validatePiArgs(options.piArgs);
+		args.push(...options.piArgs);
+	}
+
 	// When the task is too long for a CLI argument (Windows ENAMETOOLONG),
 	// write it to a temp file and use pi's @file syntax instead.
 	const TASK_ARG_LIMIT = 8000;
