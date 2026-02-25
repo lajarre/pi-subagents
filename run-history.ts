@@ -41,12 +41,11 @@ export function loadRunsForAgent(agent: string): RunEntry[] {
 		return [];
 	}
 
-	let lines = raw.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
+	const lines = raw.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
 
-	if (lines.length > ROTATE_READ_THRESHOLD) {
-		lines = lines.slice(-ROTATE_KEEP);
-		try { fs.writeFileSync(HISTORY_PATH, `${lines.join("\n")}\n`, "utf-8"); } catch {}
-	}
+	// Note: We used to rotate/truncate history here, but that caused race conditions
+	// where reading history could destroy data from concurrent writers.
+	// For now, we allow the file to grow.
 
 	return lines
 		.map((line) => { try { return JSON.parse(line) as RunEntry; } catch { return undefined; } })
