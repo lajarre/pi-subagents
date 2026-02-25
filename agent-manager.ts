@@ -108,6 +108,7 @@ export class AgentManagerComponent implements Component {
 		if (mode === "clone-agent" && sourceId) { const entry = this.getAgentEntry(sourceId); if (entry) { initial = `${entry.config.name}-copy`; scope = entry.config.source === "project" ? "project" : "user"; } }
 		if (mode === "clone-chain" && sourceId) { const entry = this.getChainEntry(sourceId); if (entry) { initial = `${entry.config.name}-copy`; scope = entry.config.source === "project" ? "project" : "user"; } }
 		if (mode === "new-agent" && template && template.name !== "Blank") initial = slugTemplateName(template.name);
+		if (!allowProject) scope = "user";
 		this.nameInputState = { mode, editor: createEditorState(initial), scope, allowProject, sourceId, template }; this.screen = "name-input";
 	}
 
