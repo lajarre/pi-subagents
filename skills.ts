@@ -303,8 +303,8 @@ function inferSkillSource(rawSource: unknown, filePath: string, cwd: string): Sk
 	if (source === "extension") return "extension";
 	if (source === "builtin") return "builtin";
 
-	if (isProjectPackageScoped) return "project-package";
 	if (isProjectScoped) return "project";
+	if (isProjectPackageScoped) return "project-package";
 	if (isUserScoped) return "user";
 	if (isGlobalPackage) return "user-package";
 	return "unknown";
