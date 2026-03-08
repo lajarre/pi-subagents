@@ -109,5 +109,47 @@ describe(
 				removeTempDir(tempDir);
 			}
 		});
+
+		it("keeps user scope when cwd includes the user agent dir", async () => {
+			const tempDir = createTempDir("skill-discovery-home-overlap-");
+			const fakeHome = path.join(tempDir, "fake-home");
+			const userAgentDir = path.join(fakeHome, ".pi", "agent");
+			const userSettingsPath = path.join(userAgentDir, "settings.json");
+			const userSkill = "user-home-overlap-skill";
+			const customSkillDir = path.join(userAgentDir, "custom", userSkill);
+			const previousHome = process.env.HOME;
+			const previousUserProfile = process.env.USERPROFILE;
+
+			try {
+				process.env.HOME = fakeHome;
+				process.env.USERPROFILE = fakeHome;
+
+				fs.mkdirSync(customSkillDir, { recursive: true });
+				fs.writeFileSync(
+					path.join(customSkillDir, "SKILL.md"),
+					`---\nname: ${userSkill}\ndescription: overlap test skill\n---\nbody\n`,
+					"utf-8",
+				);
+				fs.mkdirSync(path.dirname(userSettingsPath), { recursive: true });
+				fs.writeFileSync(
+					userSettingsPath,
+					JSON.stringify({ skills: ["./custom"] }, null, 2),
+					"utf-8",
+				);
+
+				const fresh = await importSkillsFresh();
+				fresh.clearSkillCache?.();
+				const discovered = fresh.discoverAvailableSkills(fakeHome);
+				const overlapSkill = discovered.find((s: any) => s.name === userSkill);
+				assert.ok(overlapSkill, "should include overlap user skill");
+				assert.equal(overlapSkill.source, "user");
+			} finally {
+				if (previousHome === undefined) delete process.env.HOME;
+				else process.env.HOME = previousHome;
+				if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+				else process.env.USERPROFILE = previousUserProfile;
+				removeTempDir(tempDir);
+			}
+		});
 	},
 );
