@@ -282,31 +282,33 @@ function buildSkillPaths(cwd: string): string[] {
 function inferSkillSource(rawSource: unknown, filePath: string, cwd: string): SkillSource {
 	const source = typeof rawSource === "string" ? rawSource : "";
 	const projectRoot = path.resolve(cwd, CONFIG_DIR);
+	const isUserScoped = isWithinPath(filePath, AGENT_DIR);
 	const isProjectScoped = isWithinPath(filePath, projectRoot);
 	const isProjectPackageScoped = isWithinPath(filePath, path.resolve(cwd));
-	const isUserScoped = isWithinPath(filePath, AGENT_DIR);
 	const globalRoot = getGlobalNpmRoot();
 	const isGlobalPackage = globalRoot ? isWithinPath(filePath, globalRoot) : false;
 
-	if (source === "project") return "project";
+	if (source === "project") {
+		return isUserScoped ? "user" : "project";
+	}
 	if (source === "user") return "user";
 	if (source === "settings") {
-		if (isProjectScoped) return "project-settings";
 		if (isUserScoped) return "user-settings";
+		if (isProjectScoped) return "project-settings";
 		return "unknown";
 	}
 	if (source === "package") {
-		if (isProjectPackageScoped) return "project-package";
 		if (isUserScoped || isGlobalPackage) return "user-package";
+		if (isProjectPackageScoped) return "project-package";
 		return "unknown";
 	}
 	if (source === "extension") return "extension";
 	if (source === "builtin") return "builtin";
 
-	if (isProjectScoped) return "project";
-	if (isProjectPackageScoped) return "project-package";
 	if (isUserScoped) return "user";
+	if (isProjectScoped) return "project";
 	if (isGlobalPackage) return "user-package";
+	if (isProjectPackageScoped) return "project-package";
 	return "unknown";
 }
 
@@ -416,6 +418,26 @@ export function resolveSkills(
 	}
 
 	return { resolved, missing };
+}
+
+export function resolveSkillsWithFallback(
+	skillNames: string[],
+	primaryCwd: string,
+	fallbackCwd?: string,
+): { resolved: ResolvedSkill[]; missing: string[] } {
+	const primary = resolveSkills(skillNames, primaryCwd);
+	if (!fallbackCwd || primary.missing.length === 0) {
+		return primary;
+	}
+	if (path.resolve(primaryCwd) === path.resolve(fallbackCwd)) {
+		return primary;
+	}
+
+	const fallback = resolveSkills(primary.missing, fallbackCwd);
+	return {
+		resolved: [...primary.resolved, ...fallback.resolved],
+		missing: fallback.missing,
+	};
 }
 
 export function buildSkillInjection(skills: ResolvedSkill[]): string {

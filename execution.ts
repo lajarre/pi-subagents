@@ -31,7 +31,7 @@ import {
 	extractToolArgsPreview,
 	extractTextFromContent,
 } from "./utils.js";
-import { buildSkillInjection, resolveSkills } from "./skills.js";
+import { buildSkillInjection, resolveSkillsWithFallback } from "./skills.js";
 import { getPiSpawnCommand } from "./pi-spawn.js";
 import { createJsonlWriter } from "./jsonl-writer.js";
 
@@ -112,7 +112,11 @@ export async function runSync(
 
 	const skillNames = options.skills ?? agent.skills ?? [];
 	const skillCwd = cwd ?? runtimeCwd;
-	const { resolved: resolvedSkills, missing: missingSkills } = resolveSkills(skillNames, skillCwd);
+	const { resolved: resolvedSkills, missing: missingSkills } = resolveSkillsWithFallback(
+		skillNames,
+		skillCwd,
+		runtimeCwd,
+	);
 
 	let systemPrompt = agent.systemPrompt?.trim() || "";
 	if (resolvedSkills.length > 0) {

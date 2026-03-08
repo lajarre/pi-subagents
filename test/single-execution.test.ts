@@ -24,7 +24,7 @@ import {
 	tryImport,
 } from "./helpers.ts";
 
-function writeSkillPackage(pkgDir: string, skillName: string): string {
+function writeSkillPackage(pkgDir: string, skillName: string): void {
 	const skillDir = path.join(pkgDir, "skills", skillName);
 	fs.mkdirSync(skillDir, { recursive: true });
 	fs.writeFileSync(
@@ -49,7 +49,6 @@ description: cwd override skill\n
 Loaded for cwd override test\n`,
 		"utf-8",
 	);
-	return path.join(skillDir, "SKILL.md");
 }
 // Top-level await: try importing pi-dependent modules
 const execution = await tryImport<any>("./execution.ts");
@@ -244,6 +243,23 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 			removeTempDir(taskDir);
 			removeTempDir(runCwd);
 		}
+	});
+
+	it("falls back to runtime cwd skills when execution cwd lacks them", async () => {
+		const taskCwd = path.join(tempDir, "nested");
+		const fallbackSkill = `runtime-fallback-skill-${Date.now()}`;
+		fs.mkdirSync(taskCwd, { recursive: true });
+		writePackageSkillAtRoot(tempDir, fallbackSkill);
+		mockPi.onCall({ output: "Done" });
+		const agents = [makeAgent("echo", { skills: [fallbackSkill] })];
+
+		const result = await runSync(tempDir, agents, "echo", "Task", {
+			cwd: taskCwd,
+		});
+
+		assert.equal(result.exitCode, 0);
+		assert.equal(result.skills?.[0], fallbackSkill);
+		assert.equal(result.skillsWarning, undefined);
 	});
 
 	it("writes artifacts when configured", async () => {
