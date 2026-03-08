@@ -24,11 +24,16 @@ import {
 	tryImport,
 } from "./helpers.ts";
 
-function writeSkillPackage(pkgDir: string, skillName: string): void {
-	const skillDir = path.join(pkgDir, "skills", skillName);
+function writePackageSkill(
+	packageRoot: string,
+	skillName: string,
+	description = "cwd-scoped test skill",
+	body = "",
+): void {
+	const skillDir = path.join(packageRoot, "skills", skillName);
 	fs.mkdirSync(skillDir, { recursive: true });
 	fs.writeFileSync(
-		path.join(pkgDir, "package.json"),
+		path.join(packageRoot, "package.json"),
 		JSON.stringify(
 			{
 				name: `pkg-${skillName}`,
@@ -42,41 +47,15 @@ function writeSkillPackage(pkgDir: string, skillName: string): void {
 	);
 	fs.writeFileSync(
 		path.join(skillDir, "SKILL.md"),
-		`---
-name: ${skillName}
-description: cwd override skill\n
----
-Loaded for cwd override test\n`,
+		`---\nname: ${skillName}\ndescription: ${description}\n---\n${body}`,
 		"utf-8",
 	);
 }
+
 // Top-level await: try importing pi-dependent modules
 const execution = await tryImport<any>("./execution.ts");
 const utils = await tryImport<any>("./utils.ts");
 const available = !!(execution && utils);
-
-function writePackageSkillAtRoot(packageRoot: string, skillName: string): void {
-	const skillDir = path.join(packageRoot, "skills", skillName);
-	fs.mkdirSync(skillDir, { recursive: true });
-	fs.writeFileSync(
-		path.join(packageRoot, "package.json"),
-		JSON.stringify(
-			{
-				name: `${skillName}-pkg`,
-				version: "1.0.0",
-				pi: {
-					skills: [`./skills/${skillName}`],
-				},
-			},
-			null,
-			2,
-		),
-	);
-	fs.writeFileSync(
-		path.join(skillDir, "SKILL.md"),
-		`---\nname: ${skillName}\ndescription: cwd-scoped test skill\n---\n`,
-	);
-}
 
 const runSync = execution?.runSync;
 const getFinalOutput = utils?.getFinalOutput;
@@ -228,7 +207,12 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 		const taskDir = createTempDir("pi-subagent-task-cwd-");
 		const runCwd = createTempDir("pi-subagent-run-cwd-");
 		mockPi.onCall({ output: "Done" });
-		writeSkillPackage(taskDir, "cwd-override-skill");
+		writePackageSkill(
+			taskDir,
+			"cwd-override-skill",
+			"cwd override skill",
+			"Loaded for cwd override test\n",
+		);
 
 		const agents = [makeAgent("echo", { skills: ["cwd-override-skill"] })];
 		const result = await runSync(runCwd, agents, "echo", "Task", {
@@ -249,7 +233,7 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 		const taskCwd = path.join(tempDir, "nested");
 		const fallbackSkill = `runtime-fallback-skill-${Date.now()}`;
 		fs.mkdirSync(taskCwd, { recursive: true });
-		writePackageSkillAtRoot(tempDir, fallbackSkill);
+		writePackageSkill(tempDir, fallbackSkill);
 		mockPi.onCall({ output: "Done" });
 		const agents = [makeAgent("echo", { skills: [fallbackSkill] })];
 
@@ -300,7 +284,7 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 	it("resolves skills from effective task cwd package", async () => {
 		const taskCwd = createTempDir("pi-subagent-task-cwd-");
 		const taskSkill = `task-cwd-skill-${Date.now()}`;
-		writePackageSkillAtRoot(taskCwd, taskSkill);
+		writePackageSkill(taskCwd, taskSkill);
 		mockPi.onCall({ output: "Done" });
 		const agents = [makeAgent("echo", { skills: [taskSkill] })];
 
