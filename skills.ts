@@ -96,10 +96,6 @@ function extractSkillPathsFromPackageRoot(packageRoot: string): string[] {
 		.map((s: string) => path.resolve(packageRoot, s));
 }
 
-function getPackageSkillPaths(packageRoot: string): string[] {
-	return extractSkillPathsFromPackageRoot(packageRoot);
-}
-
 let cachedGlobalNpmRoot: string | null = null;
 
 function getGlobalNpmRoot(): string | null {
@@ -146,7 +142,7 @@ function collectPackageSourcesFromSettings(settingsPath: string, baseDir: string
 	const entries = (settings as { packages?: unknown }).packages;
 	if (!Array.isArray(entries)) return [];
 
-	const packageRoots: string[] = [];
+	const skillPaths: string[] = [];
 	for (const entry of entries) {
 		const source =
 			typeof entry === "string"
@@ -157,14 +153,8 @@ function collectPackageSourcesFromSettings(settingsPath: string, baseDir: string
 		if (!source) continue;
 
 		const packageRoot = resolveSettingsPackageRoot(source, baseDir);
-		if (packageRoot) {
-			packageRoots.push(packageRoot);
-		}
-	}
-
-	const skillPaths: string[] = [];
-	for (const packageRoot of packageRoots) {
-		skillPaths.push(...getPackageSkillPaths(packageRoot));
+		if (!packageRoot) continue;
+		skillPaths.push(...extractSkillPathsFromPackageRoot(packageRoot));
 	}
 	return skillPaths;
 }
@@ -208,13 +198,13 @@ function collectPackageSkillPaths(cwd: string): string[] {
 					if (scopeEntry.name.startsWith(".")) continue;
 					if (!scopeEntry.isDirectory() && !scopeEntry.isSymbolicLink()) continue;
 					const pkgRoot = path.join(scopeDir, scopeEntry.name);
-					results.push(...getPackageSkillPaths(pkgRoot));
+					results.push(...extractSkillPathsFromPackageRoot(pkgRoot));
 				}
 				continue;
 			}
 
 			const pkgRoot = path.join(dir, entry.name);
-			results.push(...getPackageSkillPaths(pkgRoot));
+			results.push(...extractSkillPathsFromPackageRoot(pkgRoot));
 		}
 	}
 
@@ -229,22 +219,21 @@ function collectSettingsSkillPaths(cwd: string): string[] {
 	];
 
 	for (const { file, base } of settingsFiles) {
-		try {
-			const content = fs.readFileSync(file, "utf-8");
-			const settings = JSON.parse(content);
-			const skills = settings?.skills;
-			if (!Array.isArray(skills)) continue;
-			for (const entry of skills) {
-				if (typeof entry !== "string") continue;
-				let resolved = entry;
-				if (resolved.startsWith("~/")) {
-					resolved = path.join(os.homedir(), resolved.slice(2));
-				} else if (!path.isAbsolute(resolved)) {
-					resolved = path.resolve(base, resolved);
-				}
-				results.push(resolved);
+		const settings = readJsonFile(file);
+		if (!settings || typeof settings !== "object" || settings === null) continue;
+		const skills = (settings as { skills?: unknown }).skills;
+		if (!Array.isArray(skills)) continue;
+
+		for (const entry of skills) {
+			if (typeof entry !== "string") continue;
+			let resolved = entry;
+			if (resolved.startsWith("~/")) {
+				resolved = path.join(os.homedir(), resolved.slice(2));
+			} else if (!path.isAbsolute(resolved)) {
+				resolved = path.resolve(base, resolved);
 			}
-		} catch {}
+			results.push(resolved);
+		}
 	}
 
 	return results;
@@ -257,10 +246,6 @@ function collectSettingsPackageSkillPaths(cwd: string): string[] {
 	];
 }
 
-function collectCurrentPackageSkillPaths(cwd: string): string[] {
-	return extractSkillPathsFromPackageRoot(cwd);
-}
-
 function buildSkillPaths(cwd: string): string[] {
 	const defaultSkillPaths = [
 		path.join(cwd, CONFIG_DIR, "skills"),
@@ -268,13 +253,12 @@ function buildSkillPaths(cwd: string): string[] {
 	];
 	const packagePaths = collectPackageSkillPaths(cwd);
 	const settingsPackagePaths = collectSettingsPackageSkillPaths(cwd);
-	const cwdPackagePaths = collectCurrentPackageSkillPaths(cwd);
 	const settingsPaths = collectSettingsSkillPaths(cwd);
 	return [...new Set([
 		...defaultSkillPaths,
 		...packagePaths,
 		...settingsPackagePaths,
-		...cwdPackagePaths,
+		...extractSkillPathsFromPackageRoot(cwd),
 		...settingsPaths,
 	])];
 }
