@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+- Documented that user/project agent definitions may be symlinked `.md`
+  files, which enables `.pi/agents/` to act as a thin pointer layer to a
+  separate source of truth.
+
+### Fixed
+- Added E2E coverage for symlinked project agents. The loader already
+  accepted symlinks; now discovery/execution behavior is regression-tested.
+
 ## [0.11.12] - 2026-03-28
 
 ### Changed
