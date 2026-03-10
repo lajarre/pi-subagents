@@ -51,6 +51,33 @@ function writeTestAgents(cwd: string, agents: Array<{ name: string; description?
 	}
 }
 
+function writeSymlinkedTestAgent(cwd: string, agent: { name: string; description?: string; model?: string }) {
+	const agentsDir = path.join(cwd, ".pi", "agents");
+	const targetsDir = path.join(cwd, ".pi", "agent-targets");
+	fs.mkdirSync(agentsDir, { recursive: true });
+	fs.mkdirSync(targetsDir, { recursive: true });
+
+	const frontmatter = [
+		"---",
+		`name: ${agent.name}`,
+		`description: ${agent.description ?? `Test agent ${agent.name}`}`,
+		agent.model ? `model: ${agent.model}` : null,
+		"---",
+	]
+		.filter(Boolean)
+		.join("\n");
+	const content = `${frontmatter}\n\nYou are a test agent named ${agent.name}.\n`;
+
+	const targetPath = path.join(targetsDir, `${agent.name}.md`);
+	fs.writeFileSync(targetPath, content);
+
+	const linkPath = path.join(agentsDir, `${agent.name}.md`);
+	try {
+		fs.unlinkSync(linkPath);
+	} catch {}
+	fs.symlinkSync(path.relative(agentsDir, targetPath), linkPath, "file");
+}
+
 describe("subagent tool — management", { skip: !available ? "pi-test-harness not available" : undefined }, () => {
 	const { createTestSession, when, calls, says } = harness;
 	let t: any;
@@ -259,6 +286,36 @@ describe("subagent tool — single execution", { skip: !available ? "pi-test-har
 		assert.equal(results.length, 1);
 		assert.ok(!results[0].isError, `should succeed: ${results[0].text.slice(0, 200)}`);
 		assert.ok(results[0].text.includes("Hello from the subagent"), `should contain output: ${results[0].text.slice(0, 200)}`);
+	});
+
+	it("executes a symlinked project agent and returns output", async (ctx) => {
+		mockPi?.onCall({ output: "Hello from the symlinked subagent!" });
+
+		t = await createTestSession({
+			extensions: [EXTENSION],
+			mockTools: { bash: "ok", read: "ok", write: "ok", edit: "ok" },
+		});
+
+		try {
+			writeSymlinkedTestAgent(t.cwd, { name: "echo", description: "Symlinked echo" });
+		} catch (error: any) {
+			if (process.platform === "win32" && ["EPERM", "EACCES", "UNKNOWN"].includes(error?.code)) {
+				ctx.skip(`symlink creation unavailable on this Windows environment: ${error.code}`);
+			}
+			throw error;
+		}
+
+		await t.run(
+			when("Run the symlinked echo agent", [
+				calls("subagent", { agent: "echo", task: "Say hello", clarify: false, agentScope: "project" }),
+				says("The symlinked agent responded."),
+			]),
+		);
+
+		const results = t.events.toolResultsFor("subagent");
+		assert.equal(results.length, 1);
+		assert.ok(!results[0].isError, `should succeed: ${results[0].text.slice(0, 200)}`);
+		assert.ok(results[0].text.includes("Hello from the symlinked subagent"), `should contain output: ${results[0].text.slice(0, 200)}`);
 	});
 
 	it("returns error for failed agent", async () => {
